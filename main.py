@@ -66,10 +66,21 @@ def wrap_text(draw, text, font, max_width):
     return lines
 
 def get_font(size):
-    try:
-        return ImageFont.truetype("arial.ttf", size)
-    except OSError:
-        return ImageFont.load_default()
+    font_paths = [
+        "arial.ttf",
+        "C:/Windows/Fonts/arial.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    ]
+
+    for font_path in font_paths:
+        try:
+            return ImageFont.truetype(font_path, size)
+        except OSError:
+            continue
+
+    return ImageFont.load_default()
 
 def create_pdf_report(report_path, image_path, filename, result, confidence, patient_info):
     page_width, page_height = 1240, 1754
@@ -77,27 +88,35 @@ def create_pdf_report(report_path, image_path, filename, result, confidence, pat
     report = Image.new("RGB", (page_width, page_height), "white")
     draw = ImageDraw.Draw(report)
 
-    title_font = get_font(48)
+    title_font = get_font(46)
+    subtitle_font = get_font(22)
     heading_font = get_font(30)
-    body_font = get_font(26)
-    small_font = get_font(22)
+    body_font = get_font(24)
+    small_font = get_font(20)
+    label_font = get_font(18)
 
     blue = (26, 78, 140)
+    navy = (15, 45, 82)
     dark = (31, 41, 55)
     muted = (95, 108, 128)
     light_blue = (232, 241, 252)
+    soft_gray = (248, 250, 252)
     border = (204, 216, 232)
+    success = (26, 127, 82)
+    warning = (190, 91, 38)
 
-    draw.rectangle((0, 0, page_width, 170), fill=blue)
-    draw.text((margin, 55), "MRI Brain Tumor Detection Report", fill="white", font=title_font)
-    draw.text((margin, 120), "AI-assisted prediction summary", fill=(220, 235, 255), font=small_font)
+    draw.rectangle((0, 0, page_width, 190), fill=navy)
+    draw.rectangle((0, 176, page_width, 190), fill=blue)
+    draw.text((margin, 50), "MRI Brain Tumor Detection Report", fill="white", font=title_font)
+    draw.text((margin, 115), "AI-assisted prediction summary", fill=(220, 235, 255), font=subtitle_font)
+    draw.text((page_width - margin - 210, 62), patient_info["report_id"], fill=(220, 235, 255), font=subtitle_font)
 
-    y = 230
+    y = 245
     draw.text((margin, y), "Patient Details", fill=dark, font=heading_font)
     y += 50
 
-    patient_box_bottom = y + 245
-    draw.rounded_rectangle((margin, y, page_width - margin, patient_box_bottom), radius=18, fill=(248, 250, 252), outline=border, width=2)
+    patient_box_bottom = y + 250
+    draw.rounded_rectangle((margin, y, page_width - margin, patient_box_bottom), radius=16, fill=soft_gray, outline=border, width=2)
 
     patient_details = [
         ("Report ID", patient_info["report_id"]),
@@ -110,48 +129,58 @@ def create_pdf_report(report_path, image_path, filename, result, confidence, pat
 
     left_x = margin + 35
     right_x = margin + 560
-    detail_y = y + 35
+    detail_y = y + 34
 
     for index, (label, value) in enumerate(patient_details):
         column_x = left_x if index % 2 == 0 else right_x
-        row_y = detail_y + (index // 2) * 68
-        draw.text((column_x, row_y), label, fill=muted, font=small_font)
+        row_y = detail_y + (index // 2) * 72
+        draw.text((column_x, row_y), label.upper(), fill=muted, font=label_font)
         draw.text((column_x, row_y + 28), value or "Not provided", fill=dark, font=body_font)
 
     y = patient_box_bottom + 70
-    draw.text((margin, y), "Patient Image", fill=dark, font=heading_font)
+    draw.text((margin, y), "Scan and Prediction", fill=dark, font=heading_font)
     y += 50
 
-    image_box = (margin, y, margin + 430, y + 430)
-    draw.rounded_rectangle(image_box, radius=18, outline=border, width=3, fill=(248, 250, 252))
+    scan_box = (margin, y, page_width - margin, y + 520)
+    draw.rounded_rectangle(scan_box, radius=16, fill="white", outline=border, width=2)
+
+    image_box = (margin + 35, y + 45, margin + 475, y + 485)
+    draw.rounded_rectangle(image_box, radius=14, outline=border, width=3, fill=soft_gray)
 
     with Image.open(image_path) as uploaded_image:
         uploaded_image = uploaded_image.convert("RGB")
-        uploaded_image.thumbnail((390, 390))
+        uploaded_image.thumbnail((400, 400))
         image_x = image_box[0] + ((image_box[2] - image_box[0]) - uploaded_image.width) // 2
         image_y = image_box[1] + ((image_box[3] - image_box[1]) - uploaded_image.height) // 2
         report.paste(uploaded_image, (image_x, image_y))
 
-    details_x = margin + 500
-    details_y = y + 10
+    details_x = margin + 535
+    details_y = y + 50
     draw.text((details_x, details_y), "Prediction Details", fill=dark, font=heading_font)
-    details_y += 60
+    details_y += 70
+
+    result_color = success if result == "No Tumor" else warning
+    badge_box = (details_x, details_y, page_width - margin - 35, details_y + 78)
+    draw.rounded_rectangle(badge_box, radius=14, fill=(245, 250, 247) if result == "No Tumor" else (255, 246, 238), outline=result_color, width=3)
+    draw.text((details_x + 24, details_y + 22), result, fill=result_color, font=heading_font)
+    details_y += 112
 
     details = [
         ("Filename", filename),
-        ("Prediction", result),
         ("Confidence", f"{confidence * 100:.2f}%"),
         ("Generated", patient_info["generated_at"]),
     ]
 
     for label, value in details:
-        draw.text((details_x, details_y), label, fill=muted, font=small_font)
-        details_y += 30
-        draw.text((details_x, details_y), value, fill=dark, font=body_font)
-        details_y += 60
+        draw.text((details_x, details_y), label.upper(), fill=muted, font=label_font)
+        details_y += 28
+        for line in wrap_text(draw, value, body_font, page_width - margin - details_x - 35):
+            draw.text((details_x, details_y), line, fill=dark, font=body_font)
+            details_y += 34
+        details_y += 22
 
-    y += 510
-    draw.rounded_rectangle((margin, y, page_width - margin, y + 250), radius=18, fill=light_blue, outline=border, width=2)
+    y = scan_box[3] + 55
+    draw.rounded_rectangle((margin, y, page_width - margin, y + 255), radius=16, fill=light_blue, outline=border, width=2)
     draw.text((margin + 35, y + 35), "Important Note", fill=blue, font=heading_font)
 
     note = (
@@ -164,7 +193,7 @@ def create_pdf_report(report_path, image_path, filename, result, confidence, pat
         draw.text((margin + 35, note_y), line, fill=dark, font=body_font)
         note_y += 38
 
-    footer_text = "Generated by MRI Brain Tumor Detection System"
+    footer_text = "Generated by MRI Brain Tumor Detection System | AI result requires clinical review"
     footer_bbox = draw.textbbox((0, 0), footer_text, font=small_font)
     draw.text(
         ((page_width - footer_bbox[2]) // 2, page_height - 95),
