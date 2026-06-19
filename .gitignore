@@ -1,0 +1,17 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+uploads/
+reports/
+flask.err.log
+flask.out.log
+
+.env
+.venv/
+env/
+
+.vscode/
