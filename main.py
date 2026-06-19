@@ -10,7 +10,18 @@ from PIL import Image, ImageDraw, ImageFont
 
 app = Flask(__name__)
 
-model = load_model('model/model.h5', compile=False)
+# model = load_model('model/model.h5', compile=False)
+
+
+from huggingface_hub import hf_hub_download
+
+model_path = hf_hub_download(
+    repo_id="Arham1908/Tumor_Detection",
+    filename="model.h5"
+)
+
+model = load_model(model_path, compile=False)
+
 
 # Class labels
 class_labels = ['notumor', 'glioma', 'meningioma', 'pituitary']
